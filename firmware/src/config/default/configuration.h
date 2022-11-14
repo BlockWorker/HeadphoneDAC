@@ -116,7 +116,7 @@ extern "C" {
 /* SPI Driver Instance 0 Configuration Options */
 #define DRV_SPI_INDEX_0                       0
 #define DRV_SPI_CLIENTS_NUMBER_IDX0           1
-#define DRV_SPI_QUEUE_SIZE_IDX0               4
+#define DRV_SPI_QUEUE_SIZE_IDX0               20
 
 /* SPI Driver Common Configuration Options */
 #define DRV_SPI_INSTANCES_NUMBER              1
@@ -129,7 +129,7 @@ extern "C" {
 // *****************************************************************************
 // *****************************************************************************
 /* Number of Endpoints used */
-#define DRV_USBHS_ENDPOINTS_NUMBER                        3
+#define DRV_USBHS_ENDPOINTS_NUMBER                        4
 
 /* The USB Device Layer will not initialize the USB Driver */
 #define USB_DEVICE_DRIVER_INITIALIZE_EXPLICIT
@@ -145,12 +145,10 @@ extern "C" {
 #define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_CONTROL_INTERFACE_ID           0x00
 #define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_ID              0x01
 #define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_ID                0x02
-#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_ID              0x03
-#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_OUTPUT_TERMINAL_ID                0x04
-#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_MICROPHONE_ID      0x05    
-#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_MICROPHONE_ID        0x06
-#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_MICROPHONE_ID      0x07
-#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_OUTPUT_TERMINAL_MICROPHONE_ID     0x08
+#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_OUTPUT_TERMINAL_ID                0x03
+#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_MICROPHONE_ID      0x04    
+#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_MICROPHONE_ID        0x05
+#define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_OUTPUT_TERMINAL_MICROPHONE_ID     0x06
 #define USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_STREAMING_INTERFACE_ID_1       0x01
 
 /*** USB Driver Configuration ***/
@@ -189,6 +187,14 @@ extern "C" {
 /* No of alternate settings */
 #define USB_DEVICE_AUDIO_MAX_ALTERNATE_SETTING      2
 
+
+/* Maximum instances of HID function driver */
+#define USB_DEVICE_HID_INSTANCES_NUMBER     1 
+
+/* HID Transfer Queue Size for both read and
+   write. Applicable to all instances of the
+   function driver */
+#define USB_DEVICE_HID_QUEUE_DEPTH_COMBINED                 2
 
 
 

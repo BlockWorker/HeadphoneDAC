@@ -104,6 +104,20 @@ void CLK_Initialize( void )
     /* Enable oscillator (ON bit) and Enable Output (OE bit) */
     REFO1CONSET = 0x00001000 | 0x00008000;
 
+    /* Set up Reference Clock 3 */
+    /* REFO3CON register */
+    /* ROSEL =  SYSCLK */
+    /* DIVSWEN = 1 */
+    /* RODIV = 1 */
+    REFO3CON = 0x10200;
+
+    /* REFO3TRIM register */
+    /* ROTRIM = 3 */
+    REFO3TRIM = 0x1800000;
+
+    /* Enable oscillator (ON bit) */
+    REFO3CONSET = 0x00008000;
+
   
 
     /* Peripheral Module Disable Configuration */

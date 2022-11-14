@@ -4,20 +4,26 @@
 
 #include "app_audio.h"
 #include "app.h"
+#include "usb/usb_device_audio_v1_0.h"
 #include "peripheral/coretimer/plib_coretimer.h"
 #include "audio/math/dsp/dsp.h"
+#include "dac_ctrl.h"
 
 
-static uint8_t _audio_hpInterfaceSetting = 0;
-static uint8_t _audio_micInterfaceSetting = 0;
+static volatile uint8_t _audio_hp_interface_setting = 0;
+static volatile uint8_t _audio_mic_interface_setting = 0;
 
-static uint32_t _audio_hpSamplesPerPacket = 48;
+static volatile uint32_t _audio_hp_samples_per_packet = 48;
+static volatile uint32_t _audio_hp_sample_rate = 48000;
+static volatile uint32_t _audio_hp_sample_rate_new = 48000;
+static uint32_t _audio_mic_sample_rate = 48000;
+static volatile uint32_t _audio_mic_sample_rate_new = 48000;
 
-static USB_DEVICE_AUDIO_TRANSFER_HANDLE _audio_receive_handles[APP_AUDIO_REQUEST_COUNT] = { 0 };
-static uint8_t _audio_receive_buffers[APP_AUDIO_REQUEST_COUNT][APP_AUDIO_REQUEST_BUFFER_SIZE] __attribute__((coherent, aligned(16))) = { { 0 } };
+static volatile USB_DEVICE_AUDIO_TRANSFER_HANDLE _audio_receive_handles[APP_AUDIO_REQUEST_COUNT] = { 0 };
+static volatile uint8_t _audio_receive_buffers[APP_AUDIO_REQUEST_COUNT][APP_AUDIO_REQUEST_BUFFER_SIZE] __attribute__((coherent, aligned(16))) = { { 0 } };
 
 static uint32_t _audio_zero __attribute__((coherent)) = 0;
-static uint32_t _audio_ring_buffer[AUDIO_RING_BUFFER_SIZE] __attribute__((coherent)) = { 0 };
+static volatile uint32_t _audio_ring_buffer[AUDIO_RING_BUFFER_SIZE] __attribute__((coherent)) = { 0 };
 static volatile uint16_t _audio_ring_write_pos = AUDIO_RING_BUFFER_TARGET;
 #define _audio_ring_read_pos ((uint16_t)(DCH0SPTR >> 2))
 
@@ -26,16 +32,27 @@ uint8_t audio_mic_mute_usb = 0;
 int16_t audio_hp_volumes_usb[2] = { 0 };
 int16_t audio_mic_volumes_usb[2] = { 0 };
 
-static uint8_t _audio_hp_eq_enabled = 0;
-static uint8_t _audio_mic_eq_enabled = 0;
-static int32_t _audio_hp_biquad_coeffs[15][5] = { { 0 } };
-static int32_t _audio_mic_biquad_coeffs[15][5] = { { 0 } };
-static PARM_EQUAL_FILTER_32 _audio_hp_biquads[15] = { 0 };
-static PARM_EQUAL_FILTER_32 _audio_mic_biquads[15] = { 0 };
+//min/max/res attribute values
+static int16_t _audio_attr_zero[2] = { 0, 0 };
+static int16_t _audio_attr_one = 1;
+static int16_t _audio_attr_m120dB[2] = { -30720, -30720 }; //-120dB on USB scale
+static int16_t _audio_attr_05dB[2] = { 128, 128 }; //0.5dB on USB scale
+static uint32_t _audio_attr_48k = 48000;
+static uint32_t _audio_attr_96k = 96000;
+
+static volatile enum {
+    AUDIO_CONTROL_RECEIVE_NONE,
+    AUDIO_CONTROL_RECEIVE_HP,
+    AUDIO_CONTROL_RECEIVE_MIC,
+    AUDIO_CONTROL_RECEIVE_SAMPLERATE
+} _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_NONE;
+
+//static PARM_EQUAL_FILTER_32 _audio_hp_biquads[32] = { 0 };
+//static PARM_EQUAL_FILTER_32 _audio_mic_biquads[32] = { 0 };
 
 
 void _audio_reset_ring_buffer() {
-    memset(_audio_ring_buffer, 0, AUDIO_RING_BUFFER_SIZE << 2);
+    memset((void*)_audio_ring_buffer, 0, AUDIO_RING_BUFFER_SIZE << 2);
     _audio_ring_write_pos = AUDIO_RING_BUFFER_TARGET;
 }
 
@@ -71,12 +88,12 @@ void _audio_queue_transfers() {
     USB_DEVICE_AUDIO_RESULT result;
     for (i = 0; i < APP_AUDIO_REQUEST_COUNT; i++) {
         if (_audio_receive_handles[i] != USB_DEVICE_AUDIO_TRANSFER_HANDLE_INVALID) continue; //leave valid handles, request already present
-        result = USB_DEVICE_AUDIO_Read(0, _audio_receive_handles + i, 1, _audio_receive_buffers[i], _audio_hpSamplesPerPacket * 8);
+        result = USB_DEVICE_AUDIO_Read(0, (USB_DEVICE_AUDIO_TRANSFER_HANDLE*)_audio_receive_handles + i, 1, (void*)_audio_receive_buffers[i], _audio_hp_samples_per_packet * 8);
         if (result != USB_DEVICE_AUDIO_RESULT_OK) break; //stop requesting once an error is encountered
     }
 }
 
-void _audio_handle_read(uint8_t* byte_buf, uint16_t size) {
+void _audio_handle_read(volatile uint8_t* byte_buf, uint16_t size) {
     uint32_t buffer[APP_AUDIO_REQUEST_BUFFER_SIZE >> 2] = { 0 };
     uint32_t i;
     
@@ -86,7 +103,7 @@ void _audio_handle_read(uint8_t* byte_buf, uint16_t size) {
             buffer[i + 3] = buffer[i + 1] = *((uint32_t*)(byte_buf + 4 * i + 4));
         }
     } else { //original samples
-        memcpy(buffer, byte_buf, APP_AUDIO_REQUEST_BUFFER_SIZE);
+        memcpy(buffer, (void*)byte_buf, APP_AUDIO_REQUEST_BUFFER_SIZE);
     }
     
     uint16_t ring_buf_length = (AUDIO_RING_BUFFER_SIZE + _audio_ring_write_pos - _audio_ring_read_pos) % AUDIO_RING_BUFFER_SIZE;
@@ -120,15 +137,282 @@ void _audio_handle_read(uint8_t* byte_buf, uint16_t size) {
 }
 
 void _audio_handle_feature_control(USB_AUDIO_FEATURE_UNIT_CONTROL_REQUEST* request) {
-    
+    switch (request->featureUnitId) {
+        case USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_ID:
+            switch (request->controlSelector) {
+                case USB_AUDIO_MUTE_CONTROL:
+                    if (request->channelNumber == 0 || request->channelNumber == 0xFF) {
+                        switch (request->bRequest) {
+                            case USB_AUDIO_CS_SET_CUR:
+                                USB_DEVICE_ControlReceive(appData.usbHandle, &audio_hp_mute_usb, 1);
+                                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_HP;
+                                break;
+                            case USB_AUDIO_CS_GET_CUR:
+                                USB_DEVICE_ControlSend(appData.usbHandle, &audio_hp_mute_usb, 1);
+                                break;
+                            case USB_AUDIO_CS_GET_MIN:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 1);
+                                break;
+                            case USB_AUDIO_CS_GET_MAX:
+                                USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_one, 1);
+                                break;
+                            case USB_AUDIO_CS_GET_RES:
+                                USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_one, 1);
+                                break;
+                            default:
+                                USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                                break;
+                        }
+                    } else {
+                        USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    }
+                    break;
+                case USB_AUDIO_VOLUME_CONTROL:
+                    if (request->channelNumber > 0 && request->channelNumber < 3) { //single channel
+                        switch (request->bRequest) {
+                            case USB_AUDIO_CS_SET_CUR:
+                                USB_DEVICE_ControlReceive(appData.usbHandle, audio_hp_volumes_usb + request->channelNumber - 1, 2);
+                                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_HP;
+                                break;
+                            case USB_AUDIO_CS_GET_CUR:
+                                USB_DEVICE_ControlSend(appData.usbHandle, audio_hp_volumes_usb + request->channelNumber - 1, 2);
+                                break;
+                            case USB_AUDIO_CS_GET_MIN:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_m120dB, 2);
+                                break;
+                            case USB_AUDIO_CS_GET_MAX:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 2);
+                                break;
+                            case USB_AUDIO_CS_GET_RES:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_05dB, 2);
+                                break;
+                            default:
+                                USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                                break;
+                        }
+                    } else if (request->channelNumber == 0xFF) { //both channels
+                        switch (request->bRequest) {
+                            case USB_AUDIO_CS_SET_CUR:
+                                USB_DEVICE_ControlReceive(appData.usbHandle, audio_hp_volumes_usb, 4);
+                                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_HP;
+                                break;
+                            case USB_AUDIO_CS_GET_CUR:
+                                USB_DEVICE_ControlSend(appData.usbHandle, audio_hp_volumes_usb, 4);
+                                break;
+                            case USB_AUDIO_CS_GET_MIN:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_m120dB, 4);
+                                break;
+                            case USB_AUDIO_CS_GET_MAX:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 4);
+                                break;
+                            case USB_AUDIO_CS_GET_RES:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_05dB, 4);
+                                break;
+                            default:
+                                USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                                break;
+                        }
+                    } else {
+                        USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    }
+                    break;
+                default:
+                    USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    break;
+            }
+            break;
+        case USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_MICROPHONE_ID:
+            switch (request->controlSelector) {
+                case USB_AUDIO_MUTE_CONTROL:
+                    if (request->channelNumber == 0 || request->channelNumber == 0xFF) {
+                        switch (request->bRequest) {
+                            case USB_AUDIO_CS_SET_CUR:
+                                USB_DEVICE_ControlReceive(appData.usbHandle, &audio_mic_mute_usb, 1);
+                                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_MIC;
+                                break;
+                            case USB_AUDIO_CS_GET_CUR:
+                                USB_DEVICE_ControlSend(appData.usbHandle, &audio_mic_mute_usb, 1);
+                                break;
+                            case USB_AUDIO_CS_GET_MIN:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 1);
+                                break;
+                            case USB_AUDIO_CS_GET_MAX:
+                                USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_one, 1);
+                                break;
+                            case USB_AUDIO_CS_GET_RES:
+                                USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_one, 1);
+                                break;
+                            default:
+                                USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                                break;
+                        }
+                    } else {
+                        USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    }
+                    break;
+                case USB_AUDIO_VOLUME_CONTROL:
+                    if (request->channelNumber > 0 && request->channelNumber < 3) { //single channel
+                        switch (request->bRequest) {
+                            case USB_AUDIO_CS_SET_CUR:
+                                USB_DEVICE_ControlReceive(appData.usbHandle, audio_mic_volumes_usb + request->channelNumber - 1, 2);
+                                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_MIC;
+                                break;
+                            case USB_AUDIO_CS_GET_CUR:
+                                USB_DEVICE_ControlSend(appData.usbHandle, audio_mic_volumes_usb + request->channelNumber - 1, 2);
+                                break;
+                            case USB_AUDIO_CS_GET_MIN:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_m120dB, 2);
+                                break;
+                            case USB_AUDIO_CS_GET_MAX:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 2);
+                                break;
+                            case USB_AUDIO_CS_GET_RES:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_05dB, 2);
+                                break;
+                            default:
+                                USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                                break;
+                        }
+                    } else if (request->channelNumber == 0xFF) { //both channels
+                        switch (request->bRequest) {
+                            case USB_AUDIO_CS_SET_CUR:
+                                USB_DEVICE_ControlReceive(appData.usbHandle, audio_mic_volumes_usb, 4);
+                                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_MIC;
+                                break;
+                            case USB_AUDIO_CS_GET_CUR:
+                                USB_DEVICE_ControlSend(appData.usbHandle, audio_mic_volumes_usb, 4);
+                                break;
+                            case USB_AUDIO_CS_GET_MIN:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_m120dB, 4);
+                                break;
+                            case USB_AUDIO_CS_GET_MAX:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 4);
+                                break;
+                            case USB_AUDIO_CS_GET_RES:
+                                USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_05dB, 4);
+                                break;
+                            default:
+                                USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                                break;
+                        }
+                    } else {
+                        USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    }
+                    break;
+                default:
+                    USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    break;
+            }
+            break;
+        default:
+            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+            break;
+    }
 }
 
-void _audio_handle_extension_control(USB_AUDIO_CONTROL_INTERFACE_REQUEST* request) {
-    //uint8_t controlSelector = request->wValue >> 8;
+void _audio_handle_endpoint_control(USB_AUDIO_CONTROL_INTERFACE_REQUEST* request) {
+    switch (request->endpoint) {
+        case 1: //mic endpoint
+            switch (request->wValue >> 8) {
+                case USB_AUDIO_SAMPLING_FREQ_CONTROL:
+                    switch (request->bRequest) {
+                        case USB_AUDIO_CS_SET_CUR:
+                            USB_DEVICE_ControlReceive(appData.usbHandle, (void*)&_audio_mic_sample_rate_new, 3);
+                            _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_NONE;
+                            break;
+                        case USB_AUDIO_CS_GET_CUR:
+                            USB_DEVICE_ControlSend(appData.usbHandle, &_audio_mic_sample_rate, 3);
+                            break;
+                        case USB_AUDIO_CS_GET_MIN:
+                            USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_48k, 3);
+                            break;
+                        case USB_AUDIO_CS_GET_MAX:
+                            USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_48k, 3);
+                            break;
+                        case USB_AUDIO_CS_GET_RES:
+                            USB_DEVICE_ControlSend(appData.usbHandle, _audio_attr_zero, 3);
+                            break;
+                        default:
+                            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                            break;
+                    }
+                    break;
+                default:
+                    USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    break;
+            }
+            break;
+        case 2: //hp endpoint
+            switch (request->wValue >> 8) {
+                case USB_AUDIO_SAMPLING_FREQ_CONTROL:
+                    switch (request->bRequest) {
+                        case USB_AUDIO_CS_SET_CUR:
+                            USB_DEVICE_ControlReceive(appData.usbHandle, (void*)&_audio_hp_sample_rate_new, 3);
+                            _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_SAMPLERATE;
+                            break;
+                        case USB_AUDIO_CS_GET_CUR:
+                            USB_DEVICE_ControlSend(appData.usbHandle, (void*)&_audio_hp_sample_rate, 3);
+                            break;
+                        case USB_AUDIO_CS_GET_MIN:
+                            USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_48k, 3);
+                            break;
+                        case USB_AUDIO_CS_GET_MAX:
+                            USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_96k, 3);
+                            break;
+                        case USB_AUDIO_CS_GET_RES:
+                            USB_DEVICE_ControlSend(appData.usbHandle, &_audio_attr_48k, 3);
+                            break;
+                        default:
+                            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                            break;
+                    }
+                    break;
+                default:
+                    USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+                    break;
+            }
+            break;
+        default:
+            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+            break;
+    }
 }
 
 void _audio_handle_control_data_receive() {
-    
+    uint8_t i;
+    switch (_audio_control_receive_context) {
+        case AUDIO_CONTROL_RECEIVE_HP:
+            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_OK);
+            
+            if (audio_hp_mute_usb > 1) audio_hp_mute_usb = 1;
+            for (i = 0; i < 2; i++) {
+                audio_hp_volumes_usb[i] &= 0xff80;
+                if (audio_hp_volumes_usb[i] > 0) audio_hp_volumes_usb[i] = 0;
+            }
+            
+            DAC_Update();
+            break;
+        case AUDIO_CONTROL_RECEIVE_MIC:
+            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_OK);
+            
+            break;
+        case AUDIO_CONTROL_RECEIVE_SAMPLERATE:
+            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_OK);
+            if (_audio_hp_sample_rate_new < 72000) {
+                _audio_hp_sample_rate = 48000;
+                _audio_hp_samples_per_packet = 48;
+            } else {
+                _audio_hp_sample_rate = 96000;
+                _audio_hp_samples_per_packet = 96;
+            }
+            _audio_dequeue_transfers();
+            if (_audio_hp_interface_setting > 0) _audio_queue_transfers();
+            break;
+        default:
+            USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
+            break;
+    }
+    _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_NONE;
 }
 
 void _audio_USBDeviceAudioEventHandler(USB_DEVICE_AUDIO_INDEX index, USB_DEVICE_AUDIO_EVENT event, void* pData, uintptr_t context) {
@@ -140,8 +424,8 @@ void _audio_USBDeviceAudioEventHandler(USB_DEVICE_AUDIO_INDEX index, USB_DEVICE_
             case USB_DEVICE_AUDIO_EVENT_INTERFACE_SETTING_CHANGED:
                 interfaceInfo = (USB_DEVICE_AUDIO_EVENT_DATA_INTERFACE_SETTING_CHANGED*)pData;
                 if (interfaceInfo->interfaceNumber == 1) {
-                    _audio_hpInterfaceSetting = interfaceInfo->interfaceAlternateSetting;
-                    if (_audio_hpInterfaceSetting == 0) { //(de)queue audio transfers depending on setting
+                    _audio_hp_interface_setting = interfaceInfo->interfaceAlternateSetting;
+                    if (_audio_hp_interface_setting == 0) { //(de)queue audio transfers depending on setting
                         _audio_dma_set_zero();
                         _audio_dequeue_transfers();
                         _audio_reset_ring_buffer();
@@ -150,7 +434,7 @@ void _audio_USBDeviceAudioEventHandler(USB_DEVICE_AUDIO_INDEX index, USB_DEVICE_
                         _audio_dma_set_buffer();
                     }
                 } else if (interfaceInfo->interfaceNumber == 2) {
-                    _audio_micInterfaceSetting = interfaceInfo->interfaceAlternateSetting;
+                    _audio_mic_interface_setting = interfaceInfo->interfaceAlternateSetting;
                 }
                 break;
             case USB_DEVICE_AUDIO_EVENT_READ_COMPLETE:
@@ -177,57 +461,27 @@ void _audio_USBDeviceAudioEventHandler(USB_DEVICE_AUDIO_INDEX index, USB_DEVICE_
                 break;
             case USB_DEVICE_AUDIO_EVENT_CONTROL_SET_CUR:
             case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_CUR:
+            case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_MIN:
+            case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_MAX:
+            case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_RES:
                 controlRequest = (USB_AUDIO_CONTROL_INTERFACE_REQUEST*)pData;
+                _audio_control_receive_context = AUDIO_CONTROL_RECEIVE_NONE;
                 switch (controlRequest->entityID) {
                     case USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_ID:
                     case USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_MICROPHONE_ID:
                         _audio_handle_feature_control((USB_AUDIO_FEATURE_UNIT_CONTROL_REQUEST*)controlRequest);
                         break;
-                    case USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_ID:
-                    case USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_MICROPHONE_ID:
-                        _audio_handle_extension_control(controlRequest);
+                    case 0:
+                        _audio_handle_endpoint_control(controlRequest);
+                        break;
+                    default:
+                        USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR);
                         break;
                 }
-                
-                /* This is an example of handling Audio control request. In this
-                 * case the control request is targeted to the Mute Control in
-                 * a feature unit entity. This event indicates that the current
-                 * value needs to be set. */
-
-                /*entityID = ((USB_AUDIO_CONTROL_INTERFACE_REQUEST*)pData)->entityID;
-                if (entityID == APP_ID_FEATURE_UNIT)
-                {
-                    controlSelector = ((USB_AUDIO_FEATURE_UNIT_CONTROL_REQUEST*)pData)->controlSelector;
-                    if (controlSelector == USB_AUDIO_MUTE_CONTROL)
-                    {
-                        USB_DEVICE_ControlReceive(appData.usbDevHandle, (void *) &(appData.dacMute), 1 );
-                        appData.currentAudioControl = APP_USB_AUDIO_MUTE_CONTROL;
-                    }
-                }
-                break; */
-
-            
-
-                /* This event occurs when the host is requesting a current
-                 * status of control */
-
-                /*entityID = ((USB_AUDIO_CONTROL_INTERFACE_REQUEST*)pData)->entityID;
-                if (entityID == APP_ID_FEATURE_UNIT)
-                {
-                    controlSelector = ((USB_AUDIO_FEATURE_UNIT_CONTROL_REQUEST*)pData)->controlSelector;
-                    if (controlSelector == USB_AUDIO_MUTE_CONTROL)
-                    {
-                        USB_DEVICE_ControlSend(appData.usbDevHandle, (void *)&(appData.dacMute), 1 );
-                    }
-                }
-                break;*/
-
+                break;
             case USB_DEVICE_AUDIO_EVENT_CONTROL_SET_MIN:
-            case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_MIN:
             case USB_DEVICE_AUDIO_EVENT_CONTROL_SET_MAX:
-            case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_MAX:
             case USB_DEVICE_AUDIO_EVENT_CONTROL_SET_RES:
-            case USB_DEVICE_AUDIO_EVENT_CONTROL_GET_RES:
             case USB_DEVICE_AUDIO_EVENT_ENTITY_GET_MEM:
                 USB_DEVICE_ControlStatus(appData.usbHandle, USB_DEVICE_CONTROL_STATUS_ERROR); //unsupported
                 break;
@@ -269,6 +523,7 @@ void APP_Audio_Init() {
 }
 
 void APP_Audio_Reset() {
+    _audio_hp_interface_setting = 0;
     _audio_dma_set_zero();
     _audio_dequeue_transfers();
     _audio_reset_ring_buffer();

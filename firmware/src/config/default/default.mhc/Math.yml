@@ -3,4 +3,4 @@ type: UniqueComponent
 attributes: {id: Math}
 children:
 - type: ElementPosition
-  attributes: {x: '450', y: '15', id: Math}
+  attributes: {x: '451', y: '15', id: Math}

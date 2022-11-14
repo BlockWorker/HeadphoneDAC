@@ -55,12 +55,53 @@ const USB_DEVICE_AUDIO_INIT audioInit0 =
 	.queueSizeWrite = 128
 };
 
+/****************************************************
+ * Class specific descriptor - HID Report descriptor
+ ****************************************************/
+const uint8_t hid_rpt0[] =
+{
+	0x06, 0x00, 0xff,              // USAGE_PAGE (Vendor Defined Page 1)
+    0x09, 0x01,                    // USAGE (Vendor Usage 1)
+    0xa1, 0x01,                    // COLLECTION (Application)
+    0x09, 0x02,                    //   USAGE (Vendor Usage 2)
+    0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,              //   LOGICAL_MAXIMUM (255)
+    0x75, 0x08,                    //   REPORT_SIZE (8)
+    0x95, 0x01,                    //   REPORT_COUNT (1)
+    0xb1, 0x02,                    //   FEATURE (Data,Var,Abs)
+    0x09, 0x03,                    //   USAGE (Vendor Usage 3)
+    0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                    //   REPORT_SIZE (1)
+    0x95, 0x18,                    //   REPORT_COUNT (24)
+    0xb1, 0x02,                    //   FEATURE (Data,Var,Abs)
+    0x19, 0x04,                    //   USAGE_MINIMUM (Vendor Usage 4)
+    0x29, 0x08,                    //   USAGE_MAXIMUM (Vendor Usage 8)
+    0x17, 0x01, 0x00, 0x00, 0x80,  //   LOGICAL_MINIMUM (-2147483647)
+    0x27, 0xff, 0xff, 0xff, 0x7f,  //   LOGICAL_MAXIMUM (2147483647)
+    0x75, 0x20,                    //   REPORT_SIZE (32)
+    0x95, 0x05,                    //   REPORT_COUNT (5)
+    0xb1, 0x02,                    //   FEATURE (Data,Var,Abs)
+    0xc0                           // END_COLLECTION
+};
+
+/**************************************************
+ * USB Device HID Function Init Data
+ **************************************************/
+const USB_DEVICE_HID_INIT hidInit0 =
+{
+	 .hidReportDescriptorSize = sizeof(hid_rpt0),
+	 .hidReportDescriptor = (void *)&hid_rpt0,
+	 .queueSizeReportReceive = 1,
+	 .queueSizeReportSend = 1
+};
+
+
 
 /**************************************************
  * USB Device Layer Function Driver Registration
  * Table
  **************************************************/
-const USB_DEVICE_FUNCTION_REGISTRATION_TABLE funcRegistrationTable[1] =
+const USB_DEVICE_FUNCTION_REGISTRATION_TABLE funcRegistrationTable[2] =
 {
     
 	/* Audio Function 0 */
@@ -73,6 +114,19 @@ const USB_DEVICE_FUNCTION_REGISTRATION_TABLE funcRegistrationTable[1] =
         .driver = (void*)USB_DEVICE_AUDIO_FUNCTION_DRIVER,    /* USB Audio function data exposed to device layer */
         .funcDriverInit = (void*)&audioInit0    /* Function driver init data */
     },
+
+
+	/* HID Function 0 */
+    { 
+        .configurationValue = 1,    /* Configuration value */ 
+        .interfaceNumber = 3,       /* First interfaceNumber of this function */ 
+        .speed = USB_SPEED_HIGH|USB_SPEED_FULL,    /* Function Speed */ 
+        .numberOfInterfaces = 1,    /* Number of interfaces */
+        .funcDriverIndex = 0,  /* Index of HID Function Driver */
+        .driver = (void*)USB_DEVICE_HID_FUNCTION_DRIVER,    /* USB HID function data exposed to device layer */
+        .funcDriverInit = (void*)&hidInit0    /* Function driver init data */
+    },
+
 
 
 };
@@ -88,11 +142,9 @@ const USB_DEVICE_DESCRIPTOR deviceDescriptor =
     0x12,                                                   // Size of this descriptor in bytes
     USB_DESCRIPTOR_DEVICE,                                  // DEVICE descriptor type
     0x0200,                                                 // USB Spec Release Number in BCD format
-0x00,         // Class Code
-    0x00,         // Subclass code
-    0x00,         // Protocol code
-
-
+    0x00,                                                   // Class Code
+    0x00,                                                   // Subclass code
+    0x00,                                                   // Protocol code
     USB_DEVICE_EP0_BUFFER_SIZE,                             // Max packet size for EP0, see configuration.h
     0x1209,                                                 // Vendor ID
     0xA01F,                                                 // Product ID
@@ -112,11 +164,9 @@ const USB_DEVICE_QUALIFIER deviceQualifierDescriptor1 =
     0x0A,                                                   // Size of this descriptor in bytes
     USB_DESCRIPTOR_DEVICE_QUALIFIER,                        // Device Qualifier Type
     0x0200,                                                 // USB Specification Release number
-0x00,         // Class Code
-    0x00,         // Subclass code
-    0x00,         // Protocol code
-
-
+    0x00,                                                   // Class Code
+    0x00,                                                   // Subclass code
+    0x00,                                                   // Protocol code
     USB_DEVICE_EP0_BUFFER_SIZE,                             // Maximum packet size for endpoint 0
     0x01,                                                   // Number of possible configurations
     0x00                                                    // Reserved for future use.
@@ -132,7 +182,7 @@ const uint8_t configurationDescriptor[]=
     0x09,                                               // Size of this descriptor in bytes
     USB_DESCRIPTOR_CONFIGURATION,                       // Descriptor Type
     USB_DEVICE_16bitTo8bitArrange(235),                  //(234 Bytes)Size of the Configuration descriptor
-    3,                                                  // Number of interfaces in this configuration
+    4,                                                  // Number of interfaces in this configuration
     0x01,                                               // Index value of this configuration
     0x00,                                               // Configuration string index
     USB_ATTRIBUTE_DEFAULT, // Attributes
@@ -159,7 +209,7 @@ const uint8_t configurationDescriptor[]=
     0x00,0x01,                      /* Audio Device compliant to the USB Audio
                                      * specification version 1.00 (bcdADC) */
 									 
-    0x6E,0x00,                      /* Total number of bytes returned for the
+    0x4E,0x00,                      /* Total number of bytes returned for the
                                      * class-specific AudioControl interface
                                      * descriptor. (wTotalLength). Includes the
                                      * combined length of this descriptor header
@@ -204,7 +254,7 @@ const uint8_t configurationDescriptor[]=
     USB_AUDIO_CS_INTERFACE,             // CS_INTERFACE Descriptor Type (bDescriptorType)
     USB_AUDIO_FEATURE_UNIT,             // FEATURE_UNIT  descriptor subtype (bDescriptorSubtype)
     USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_ID,                // ID of this Unit ( bUnitID  ).
-    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_ID,              // Extension unit is connected to this unit(bSourceID)
+    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_ID,              // Input terminal is connected to this unit(bSourceID)
     0x02,                               // (bControlSize) //was 0x03
     0x01,0x00,                          // (bmaControls(0)) Controls for Master Channel
     0x02,0x00,                          // (bmaControls(1)) Controls for Channel 1
@@ -216,42 +266,12 @@ const uint8_t configurationDescriptor[]=
     USB_AUDIO_CS_INTERFACE,             // CS_INTERFACE Descriptor Type (bDescriptorType)
     USB_AUDIO_FEATURE_UNIT,             // FEATURE_UNIT  descriptor subtype (bDescriptorSubtype)
     USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_FEATURE_UNIT_MICROPHONE_ID,     // ID of this Unit ( bUnitID  ).
-    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_MICROPHONE_ID,   // Extension unit is connected to this unit(bSourceID)
+    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_MICROPHONE_ID,   // Input terminal is connected to this unit(bSourceID)
     0x02,                               // (bControlSize) //was 0x03
     0x01,0x00,                          // (bmaControls(0)) Controls for Master Channel
     0x02,0x00,                          // (bmaControls(1)) Controls for Channel 1
     0x02,0x00,                          // (bmaControls(2)) Controls for Channel 2
     0x00,                               //  iFeature
-    
-    /* USB Headset Extension Unit Descriptor */    
-    0x10,                               // Size of the descriptor, in bytes (bLength)
-    USB_AUDIO_CS_INTERFACE,             // CS_INTERFACE Descriptor Type (bDescriptorType)
-    USB_AUDIO_EXTENSION_UNIT,           // EXTENSION_UNIT descriptor subtype (bDescriptorSubtype)
-    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_ID,             // ID of this Unit (bUnitID)
-    0x00, 0x00,                         // Identifying code (wExtensionCode)
-    0x01,                               // One input pin (bNrInPins)
-    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_ID,             // Input terminal is connected (baSourceID(1))
-    0x02,                               // Two Channels (bNrChannels)
-    0x03,0x00,                          // Left and right channels (wChannelConfig)
-    0x00,                               // Unused (iChannelNames)
-    0x02,                               // (bControlSize)
-    0xFF, 0xFF,                         // Enable/Disable + 15 biquads (bmControls)
-    0x00,                               // Unused (iExtension)
-    
-    /* USB Microphone Extension Unit Descriptor */    
-    0x10,                               // Size of the descriptor, in bytes (bLength)
-    USB_AUDIO_CS_INTERFACE,             // CS_INTERFACE Descriptor Type (bDescriptorType)
-    USB_AUDIO_EXTENSION_UNIT,           // EXTENSION_UNIT descriptor subtype (bDescriptorSubtype)
-    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_EXTENSION_UNIT_MICROPHONE_ID,  // ID of this Unit (bUnitID)
-    0x00, 0x00,                         // Identifying code (wExtensionCode)
-    0x01,                               // One input pin (bNrInPins)
-    USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_INPUT_TERMINAL_MICROPHONE_ID,  // Input terminal is connected (baSourceID(1))
-    0x02,                               // Two Channels (bNrChannels)
-    0x03,0x00,                          // Left and right channels (wChannelConfig)
-    0x00,                               // Unused (iChannelNames)
-    0x02,                               // (bControlSize)
-    0xFF, 0xFF,                         // Enable/Disable + 15 biquads (bmControls)
-    0x00,                               // Unused (iExtension)
     
     /* USB Headset Output Terminal Descriptor */
     0x09,                               // Size of the descriptor, in bytes (bLength)
@@ -319,9 +339,9 @@ const uint8_t configurationDescriptor[]=
     /*  USB Headset Standard Endpoint Descriptor */
     0x09,                            // Size of the descriptor, in bytes (bLength)
     USB_DESCRIPTOR_ENDPOINT,         // ENDPOINT descriptor (bDescriptorType)
-    2 | USB_EP_DIRECTION_OUT,                            // Endpoint2:OUT  (bEndpointAddress)
+    1 | USB_EP_DIRECTION_OUT,                            // Endpoint1:OUT  (bEndpointAddress)
     0x09,                            /* ?(bmAttributes) Isochronous,
-                                      * asynchronous, data endpoint */
+                                      * adaptive, data endpoint */
     0x00,0x03,                       // ?(wMaxPacketSize) //96 * 4 * 2
     0x01,                            // One packet per frame.(bInterval)
     0x00,                            // Unused. (bRefresh)
@@ -381,7 +401,7 @@ const uint8_t configurationDescriptor[]=
     0x09,                            // Size of the descriptor, in bytes (bLength)
     USB_DESCRIPTOR_ENDPOINT,         // ENDPOINT descriptor (bDescriptorType)
     1 | USB_EP_DIRECTION_IN,                            // Endpoint1:IN (bEndpointAddress)
-    0x0D,                            /* ?(bmAttributes) Isochronous,
+    0x05,                            /* ?(bmAttributes) Isochronous,
                                       * asynchronous, data endpoint */
     0xC0, 0x00,                      // ?(wMaxPacketSize) //48 * 2 * 2
     0x01,                            // One packet per frame.(bInterval)
@@ -397,6 +417,50 @@ const uint8_t configurationDescriptor[]=
     0x00,                            // Unused. (bLockDelayUnits)
     0x00,0x00,                        // Unused. (wLockDelay)
 	
+
+
+	/* Interface Descriptor */
+
+    0x09,                               // Size of this descriptor in bytes
+    USB_DESCRIPTOR_INTERFACE,           // Descriptor Type is Interface descriptor
+    3,                                  // Interface Number
+    0x00,                                  // Alternate Setting Number
+    0x02,                                  // Number of endpoints in this interface
+    USB_HID_CLASS_CODE,                 // Class code
+    USB_HID_SUBCLASS_CODE_NO_SUBCLASS , // Subclass code
+    USB_HID_PROTOCOL_CODE_NONE,         // No Protocol
+    0x00,                                  // Interface string index
+
+    /* HID Class-Specific Descriptor */
+
+    0x09,                           // Size of this descriptor in bytes
+    USB_HID_DESCRIPTOR_TYPES_HID,   // HID descriptor type
+    0x11,0x01,                      // HID Spec Release Number in BCD format (1.11)
+    0x00,                           // Country Code (0x00 for Not supported)
+    1,                              // Number of class descriptors
+    USB_HID_DESCRIPTOR_TYPES_REPORT,// Report descriptor type
+    USB_DEVICE_16bitTo8bitArrange(sizeof(hid_rpt0)),   // Size of the report descriptor
+
+    /* Endpoint Descriptor */
+
+    0x07,                           // Size of this descriptor in bytes
+    USB_DESCRIPTOR_ENDPOINT,        // Endpoint Descriptor
+    3 | USB_EP_DIRECTION_IN,    // EndpointAddress ( EP3 IN )
+    USB_TRANSFER_TYPE_INTERRUPT,    // Attributes
+    0x40,0x00,                      // Size
+    0x01,                           // Interval
+
+    /* Endpoint Descriptor */
+
+    0x07,                           // Size of this descriptor in bytes
+    USB_DESCRIPTOR_ENDPOINT,        // Endpoint Descriptor
+    3 | USB_EP_DIRECTION_OUT,   // EndpointAddress ( EP3 OUT )
+    USB_TRANSFER_TYPE_INTERRUPT,    // Attributes
+    0x40,0x00,                      // size
+    0x01,                           // Interval
+    
+    
+
 
 
 };
@@ -511,7 +575,7 @@ const USB_DEVICE_INIT usbDevInitData =
 {
     /* Number of function drivers registered to this instance of the
        USB device layer */
-    .registeredFuncCount = 1,
+    .registeredFuncCount = 2,
 
     /* Function driver table registered to this instance of the USB device layer*/
     .registeredFunctions = (USB_DEVICE_FUNCTION_REGISTRATION_TABLE*)funcRegistrationTable,

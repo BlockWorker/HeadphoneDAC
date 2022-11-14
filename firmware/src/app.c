@@ -30,6 +30,7 @@
 #include "app.h"
 #include "usb/usb_device_audio_v1_0.h"
 #include "app_audio.h"
+#include "dac_ctrl.h"
 
 // *****************************************************************************
 // *****************************************************************************
@@ -141,6 +142,7 @@ void APP_Tasks ( void )
     switch (appData.state) {
         case APP_STATE_INIT_START:
             APP_Audio_Init();
+            DAC_Init();
             
             appData.state = APP_STATE_INIT_USB;
             break;

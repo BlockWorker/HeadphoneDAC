@@ -72,14 +72,14 @@ children:
     - type: Values
       children:
       - type: User
-        attributes: {value: '1'}
+        attributes: {value: '2'}
   - type: Long
     attributes: {id: ADCCON3__CONCLKDIV}
     children:
     - type: Values
       children:
       - type: User
-        attributes: {value: '2'}
+        attributes: {value: '1'}
   - type: Boolean
     attributes: {id: ADCCSS1__CSS3}
     children:
@@ -246,7 +246,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '1090519040'}
+        attributes: {id: adchs, value: '2147483648'}
   - type: Hex
     attributes: {id: ADCHS_ADCCSS1}
     children:
@@ -350,7 +350,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '3093.75'}
+        attributes: {id: adchs, value: '3075.7283'}
   - type: Float
     attributes: {id: ADCHS_CONV_RATE1}
     children:
@@ -363,7 +363,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '3093.75'}
+        attributes: {id: adchs, value: '3075.7283'}
   - type: Float
     attributes: {id: ADCHS_CONV_RATE2}
     children:
@@ -376,28 +376,28 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '3093.75'}
+        attributes: {id: adchs, value: '3075.7283'}
   - type: Float
     attributes: {id: ADCHS_CONV_RATE3}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '3093.75'}
+        attributes: {id: adchs, value: '3075.7283'}
   - type: Float
     attributes: {id: ADCHS_CONV_RATE4}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '3093.75'}
+        attributes: {id: adchs, value: '3075.7283'}
   - type: Float
     attributes: {id: ADCHS_CONV_RATE7}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '2911.7646'}
+        attributes: {id: adchs, value: '2894.803'}
   - type: Boolean
     attributes: {id: ADCHS_DF1_INT_ENABLED}
     children:
@@ -438,7 +438,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '20.20202'}
+        attributes: {id: adchs, value: '20.32039'}
   - type: Float
     attributes: {id: ADCHS_TADC1}
     children:
@@ -451,7 +451,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '20.20202'}
+        attributes: {id: adchs, value: '20.32039'}
   - type: Float
     attributes: {id: ADCHS_TADC2}
     children:
@@ -464,42 +464,42 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '20.20202'}
+        attributes: {id: adchs, value: '20.32039'}
   - type: Float
     attributes: {id: ADCHS_TADC3}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '20.20202'}
+        attributes: {id: adchs, value: '20.32039'}
   - type: Float
     attributes: {id: ADCHS_TADC4}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '20.20202'}
+        attributes: {id: adchs, value: '20.32039'}
   - type: Float
     attributes: {id: ADCHS_TADC7}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '20.20202'}
+        attributes: {id: adchs, value: '20.32039'}
   - type: Float
     attributes: {id: ADCHS_TCLK}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '5.050505'}
+        attributes: {id: adchs, value: '10.160195'}
   - type: Float
     attributes: {id: ADCHS_TQ}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: adchs, value: '10.10101'}
+        attributes: {id: adchs, value: '10.160195'}
   - type: KeyValueSet
     attributes: {id: ADCTRG1__TRGSRC3}
     children:

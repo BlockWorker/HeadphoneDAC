@@ -4,7 +4,6 @@
 #ifndef _APP_AUDIO_H    /* Guard against multiple inclusion */
 #define _APP_AUDIO_H
 
-#include "config/default/usb/usb_device_audio_v1_0.h"
 #include <stdint.h>
 
 
@@ -21,6 +20,11 @@
 extern "C" {
 #endif
 
+    uint8_t audio_hp_mute_usb;
+    uint8_t audio_mic_mute_usb;
+    int16_t audio_hp_volumes_usb[2];
+    int16_t audio_mic_volumes_usb[2];
+    
 
     void APP_Audio_Init();
     void APP_Audio_Reset();

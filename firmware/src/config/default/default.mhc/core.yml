@@ -17,7 +17,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: core, value: '198000000'}
+        attributes: {id: core, value: '98423300'}
   - type: Boolean
     attributes: {id: ADC_DATA3_INTERRUPT_ENABLE}
     children:
@@ -692,16 +692,25 @@ children:
     - type: Values
       children:
       - type: User
-        attributes: {value: 'false'}
+        attributes: {value: 'true'}
   - type: String
     attributes: {id: CONFIG_SYS_CLK_REFCLK3_FREQ}
     children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: core, value: '0'}
+        attributes: {id: core, value: '200000000'}
       - type: User
-        attributes: {value: '0'}
+        attributes: {value: '98423300'}
+  - type: Boolean
+    attributes: {id: CONFIG_SYS_CLK_REFCLK3_OE}
+    children:
+    - type: Attributes
+      children:
+      - type: Boolean
+        attributes: {id: visible}
+        children:
+        - {type: Value, value: 'true'}
   - type: String
     attributes: {id: CONFIG_SYS_CLK_REFCLK4_FREQ}
     children:
@@ -711,6 +720,15 @@ children:
         attributes: {value: '0'}
   - type: Combo
     attributes: {id: CONFIG_SYS_CLK_REFCLK_SOURCE1}
+    children:
+    - type: Attributes
+      children:
+      - type: Boolean
+        attributes: {id: visible}
+        children:
+        - {type: Value, value: 'true'}
+  - type: Combo
+    attributes: {id: CONFIG_SYS_CLK_REFCLK_SOURCE3}
     children:
     - type: Attributes
       children:
@@ -734,10 +752,16 @@ children:
   - type: Integer
     attributes: {id: CONFIG_SYS_CLK_RODIV3}
     children:
+    - type: Attributes
+      children:
+      - type: Boolean
+        attributes: {id: visible}
+        children:
+        - {type: Value, value: 'true'}
     - type: Values
       children:
       - type: User
-        attributes: {value: '0'}
+        attributes: {value: '1'}
   - type: Integer
     attributes: {id: CONFIG_SYS_CLK_ROTRIM1}
     children:
@@ -754,10 +778,16 @@ children:
   - type: Integer
     attributes: {id: CONFIG_SYS_CLK_ROTRIM3}
     children:
+    - type: Attributes
+      children:
+      - type: Boolean
+        attributes: {id: visible}
+        children:
+        - {type: Value, value: 'true'}
     - type: Values
       children:
       - type: User
-        attributes: {value: '0'}
+        attributes: {value: '3'}
   - type: Boolean
     attributes: {id: CORE_TIMER_INTERRUPT_ENABLE}
     children:
@@ -1513,7 +1543,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: core, value: '0x0'}
+        attributes: {id: core, value: '0x1800000'}
   - type: Integer
     attributes: {id: REFO3_CLOCK_FREQUENCY}
     children:
@@ -1548,7 +1578,7 @@ children:
     - type: Values
       children:
       - type: Dynamic
-        attributes: {id: core, value: '0x200'}
+        attributes: {id: core, value: '0x10200'}
   - type: Integer
     attributes: {id: RNG_CLOCK_FREQUENCY}
     children:

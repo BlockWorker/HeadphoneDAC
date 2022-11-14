@@ -61,6 +61,8 @@
 #include "driver/usb/usbhs/drv_usbhs.h"
 #include "peripheral/adchs/plib_adchs.h"
 #include "peripheral/uart/plib_uart1.h"
+#include "usb/usb_device_hid.h"
+#include "usb/usb_hid.h"
 #include "audio/math/libq_c/libq_c.h"
 #include "audio/math/libq/libq.h"
 #include "audio/math/dsp/dsp.h"
