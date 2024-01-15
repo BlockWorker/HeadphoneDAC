@@ -93,12 +93,12 @@ void __ISR(_UART1_TX_VECTOR, ipl1SRS) UART1_TX_Handler (void)
     UART1_TX_InterruptHandler();
 }
 
-void __ISR(_USB_VECTOR, ipl1SRS) USB_Handler (void)
+void __ISR(_USB_VECTOR, ipl3SRS) USB_Handler (void)
 {
     DRV_USBHS_InterruptHandler();
 }
 
-void __ISR(_USB_DMA_VECTOR, ipl1SRS) USB_DMA_Handler (void)
+void __ISR(_USB_DMA_VECTOR, ipl3SRS) USB_DMA_Handler (void)
 {
     DRV_USBHS_DMAInterruptHandler();
 }

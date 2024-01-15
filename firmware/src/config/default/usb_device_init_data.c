@@ -342,7 +342,7 @@ const uint8_t configurationDescriptor[]=
     1 | USB_EP_DIRECTION_OUT,                            // Endpoint1:OUT  (bEndpointAddress)
     0x09,                            /* ?(bmAttributes) Isochronous,
                                       * adaptive, data endpoint */
-    0x00,0x03,                       // ?(wMaxPacketSize) //96 * 4 * 2
+    0x20,0x03,                       // ?(wMaxPacketSize) //96 * 4 * 2, rounded up to 800
     0x01,                            // One packet per frame.(bInterval)
     0x00,                            // Unused. (bRefresh)
     0x00,                            // Unused. (bSynchAddress)
@@ -383,7 +383,7 @@ const uint8_t configurationDescriptor[]=
     USB_AUDIO_CS_INTERFACE,                  // CS_INTERFACE Descriptor Type (bDescriptorType)
     USB_AUDIO_AS_GENERAL,                     // GENERAL subtype (bDescriptorSubtype)
     USB_DEVICE_AUDIO_IDX0_DESCRIPTOR_OUTPUT_TERMINAL_MICROPHONE_ID,           // Unit ID of the Output Terminal.(bTerminalLink)
-    0x00,                            // Interface delay. (bDelay)
+    0x01,                            // Interface delay. (bDelay)
     0x01,0x00,                       // PCM Format (wFormatTag)
 
     /*  USB Microphone Type 1 Format Type Descriptor */
@@ -403,7 +403,7 @@ const uint8_t configurationDescriptor[]=
     1 | USB_EP_DIRECTION_IN,                            // Endpoint1:IN (bEndpointAddress)
     0x05,                            /* ?(bmAttributes) Isochronous,
                                       * asynchronous, data endpoint */
-    0xC0, 0x00,                      // ?(wMaxPacketSize) //48 * 2 * 2
+    0xC8, 0x00,                      // ?(wMaxPacketSize) //48 * 2 * 2, rounded up to 200
     0x01,                            // One packet per frame.(bInterval)
     0x00,                            // Unused. (bRefresh)
     0x00,                            // Unused. (bSynchAddress)

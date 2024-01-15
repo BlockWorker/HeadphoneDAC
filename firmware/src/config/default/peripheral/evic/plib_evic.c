@@ -59,8 +59,8 @@ void EVIC_Initialize( void )
     IPC28SET = 0x4 | 0x0;  /* UART1_FAULT:  Priority 1 / Subpriority 0 */
     IPC28SET = 0x400 | 0x0;  /* UART1_RX:  Priority 1 / Subpriority 0 */
     IPC28SET = 0x40000 | 0x0;  /* UART1_TX:  Priority 1 / Subpriority 0 */
-    IPC33SET = 0x4 | 0x0;  /* USB:  Priority 1 / Subpriority 0 */
-    IPC33SET = 0x400 | 0x0;  /* USB_DMA:  Priority 1 / Subpriority 0 */
+    IPC33SET = 0xc | 0x0;  /* USB:  Priority 3 / Subpriority 0 */
+    IPC33SET = 0xc00 | 0x0;  /* USB_DMA:  Priority 3 / Subpriority 0 */
     IPC35SET = 0x4000000 | 0x0;  /* SPI2_RX:  Priority 1 / Subpriority 0 */
     IPC36SET = 0x4 | 0x0;  /* SPI2_TX:  Priority 1 / Subpriority 0 */
 
